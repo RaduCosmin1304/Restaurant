@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Restaurant Order App</title>
+  <style>
+    body {
+      background-color: #ac0e0e;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    h1,
+    h2,
+    p,
+    label {
+      color: white;
+    }
+
+    button,
+    input[type="submit"] {
+      background-color: #e80808;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      margin: 5px 0;
+      cursor: pointer;
+    }
+
+    input[type="number"] {
+      width: 60px;
+      padding: 5px;
+      margin: 0 5px;
+    }
+
+    textarea {
+      background-color: #fff;
+      color: #000;
+    }
+
+    form {
+      margin-top: 20px;
+    }
+
+    .product-row {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <!-- React and ReactDOM from a CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    /*********************
+     * COMPONENTS
+     *********************/
+
+    // 1. Welcome Component
+    const Welcome = ({ onStart }) => {
+      return (
+        <div>
+          <h1>Start the order</h1>
+          <button onClick={onStart}>Click Me</button>
+        </div>
+      );
+    };
+
+    // 2. Menu Selection Component
+    const MenuSelection = ({ onSubmit }) => {
+      const products = [
+        { id: "prod1", name: "Pizza Margherita", price: 8.99 },
+        { id: "prod2", name: "Cheesecake", price: 4.99 }
+      ];
+
+      const [quantities, setQuantities] = React.useState(
+        products.reduce((acc, product) => {
+          acc[product.id] = 0;
+          return acc;
+        }, {})
+      );
+
+      const handleChange = (id, value) => {
+        setQuantities(prev => ({ ...prev, [id]: Number(value) }));
+      };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const orderItems = products
+          .filter(product => quantities[product.id] > 0)
+          .map(product => ({
+            ...product,
+            quantity: quantities[product.id]
+          }));
+        onSubmit(orderItems);
+      };
+
+      return (
+        <div>
+          <h1>Menu</h1>
+          <form onSubmit={handleSubmit} autoComplete="off">
+            {products.map(product => (
+              <div key={product.id} className="product-row">
+                <label>{product.name}</label>
+                <label>Quantity</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={quantities[product.id]}
+                  onChange={(e) => handleChange(product.id, e.target.value)}
+                />
+                <br />
+              </div>
+            ))}
+            <input type="submit" value="Next" />
+          </form>
+        </div>
+      );
+    };
+
+    // 3. Order Summary Component
+    const OrderSummary = ({ orderItems, onNext }) => {
+      const total = orderItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+
+      return (
+        <div>
+          <h1>Order Summary</h1>
+          <ul>
+            {orderItems.map(item => (
+              <li key={item.id}>
+                {item.name}: {item.quantity} x ${item.price.toFixed(2)} = $
+                {(item.quantity * item.price).toFixed(2)}
+              </li>
+            ))}
+          </ul>
+          <h3>Total: ${total.toFixed(2)}</h3>
+          <button onClick={onNext}>Next</button>
+        </div>
+      );
+    };
+
+    // 4. Payment Component
+    const Payment = ({ onSubmit }) => {
+      const [paymentMethod, setPaymentMethod] = React.useState("");
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!paymentMethod) {
+          alert("Please select a payment method.");
+          return;
+        }
+        onSubmit(paymentMethod);
+      };
+
+      return (
+        <div>
+          <h1>Payment Method</h1>
+          <form onSubmit={handleSubmit} autoComplete="off">
+            <label>Choose a payment method</label>
+            <br />
+            <input
+              type="radio"
+              id="cash"
+              name="payment"
+              value="cash"
+              onChange={(e) => setPaymentMethod(e.target.value)}
+            />
+            <label htmlFor="cash">Cash</label>
+            <br />
+            <input
+              type="radio"
+              id="card"
+              name="payment"
+              value="card"
+              onChange={(e) => setPaymentMethod(e.target.value)}
+            />
+            <label htmlFor="card">Card</label>
+            <br />
+            <input type="submit" value="Next" />
+          </form>
+        </div>
+      );
+    };
+
+    // 5. Review Component – modified to send the order to the server
+    const Review = ({ orderItems, paymentMethod, onFinish }) => {
+      const [review, setReview] = React.useState("");
+
+      const handleFinish = async () => {
+        const orderData = {
+          order: orderItems.map(item => ({
+            product_name: item.name, // rename 'name' to 'product_name'
+            price: item.price,
+            quantity: item.quantity
+          })),
+          payment: paymentMethod,
+          recension: review
+        };
+
+        try {
+          const response = await fetch('/orders', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(orderData)
+          });
+          if (!response.ok) {
+            const errorData = await response.json();
+            alert("Error: " + (errorData.message || errorData.error));
+          } else {
+            const savedOrder = await response.json();
+            console.log('Order saved:', savedOrder);
+            alert('Order placed successfully!');
+          }
+        } catch (error) {
+          alert("Error: " + error.message);
+        }
+        onFinish();
+      };
+
+      return (
+        <div>
+          <h1>Review your order</h1>
+          <form autoComplete="off">
+            <label>Leave a review (optional):</label>
+            <br />
+            <textarea
+              name="review"
+              rows="10"
+              cols="30"
+              value={review}
+              onChange={(e) => setReview(e.target.value)}
+            ></textarea>
+            <br />
+            <button type="button" onClick={handleFinish}>
+              Finish
+            </button>
+          </form>
+        </div>
+      );
+    };
+
+    /*********************
+     * MAIN APP COMPONENT
+     *********************/
+    const App = () => {
+      // Steps: 0: Welcome, 1: Menu, 2: Order Summary, 3: Payment, 4: Review
+      const [step, setStep] = React.useState(0);
+      const [orderItems, setOrderItems] = React.useState([]);
+      const [paymentMethod, setPaymentMethod] = React.useState("");
+
+      const nextStep = () => setStep(prev => prev + 1);
+      const resetOrder = () => {
+        setStep(0);
+        setOrderItems([]);
+        setPaymentMethod("");
+      };
+
+      return (
+        <div>
+          {step === 0 && <Welcome onStart={nextStep} />}
+          {step === 1 && (
+            <MenuSelection onSubmit={(items) => {
+              setOrderItems(items);
+              nextStep();
+            }} />
+          )}
+          {step === 2 && (
+            <OrderSummary orderItems={orderItems} onNext={nextStep} />
+          )}
+          {step === 3 && (
+            <Payment onSubmit={(method) => {
+              setPaymentMethod(method);
+              nextStep();
+            }} />
+          )}
+          {step === 4 && (
+            <Review
+              orderItems={orderItems}
+              paymentMethod={paymentMethod}
+              onFinish={resetOrder}
+            />
+          )}
+        </div>
+      );
+    };
+
+    // Render the App
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+
+</html>
